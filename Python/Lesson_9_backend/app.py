@@ -1,24 +1,25 @@
 from fastapi import FastAPI, HTTPException
-from datetime import timedelta, date
-from pydantic import BaseModel
-import requests
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
-app = FastAPI(debug=True)
+# connect to database
+conn = psycopg2.connect("postgresql://robot-startml-ro:pheiph0hahj1Vaif@postgres.lab.karpov.courses:6432/startml")
+cursor = conn.cursor()
 
-class User(BaseModel):
-    name: str
-    surname: str
-    age: int
-    registration_date: date
-    
-    class Config:
-        orm_mode = True
-    
-@app.post("/user/validate")
-def validate_user(user: User):
-    # если хотя бы одно из полей пустое, то возвращать код 422
-    if not isinstance(user.name, str) or not isinstance(user.surname, str) or not isinstance(user.age, int) or not isinstance(user.registration_date, date):
-        raise HTTPException(422)
+# create FastAPI app
+app = FastAPI()
 
-    else: 
-        return ("Will add user: {} {} with age {}".format(user.name, user.surname, user.age))
+@app.get("/user/{id}")
+def get_user(id: int):
+    cursor.execute(
+        f"""
+        SELECT *
+        FROM "user"
+        WHERE id = {id}
+        """
+        )
+    user = cursor.fetchone()
+    if user:
+        return user
+    else:
+        raise HTTPException(status_code=404, detail="User not found")
