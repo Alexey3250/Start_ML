@@ -1,0 +1,6 @@
+alembic==1.7.6
+sqlalchemy==1.4.31
+fastapi==0.73.0
+psycopg2-binary==2.9.3
+uvicorn==0.16.0
+requests
