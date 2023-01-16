@@ -1,6 +1,5 @@
-from database import Base, engine
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
-import datetime
+from database import Base, engine, SessionLocal
+from sqlalchemy import Column, Integer, String
 
 class Post(Base):
     __tablename__ = "post"
@@ -8,9 +7,15 @@ class Post(Base):
     text = Column(String)
     topic = Column(String)
 
-business_posts_ids = session.query(Post.id).finter(Post.topic == "business").order_by(Post.id.desc()).limit(10).all()
-
-print([id[0] for id in business_posts_ids])
 
 if __name__ == "__main__":
     Base.metadata.create_all(bind=engine)
+    
+    # create a new session
+    session = SessionLocal()
+    # perform the query
+    business_posts_ids = session.query(Post.id).filter(Post.topic == "business").order_by(Post.id.desc()).limit(10).all()
+    print([id[0] for id in business_posts_ids])
+    # close the session
+    session.close()
+    
