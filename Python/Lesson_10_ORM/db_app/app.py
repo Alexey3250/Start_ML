@@ -28,3 +28,5 @@ def get_all_facilities(limit: int = 10, db: Session = Depends(get_db)):
 @app.get("/booking/all", response_model=List[BookingGet])
 def get_all_bookings(limit: int = 10, db: Session = Depends(get_db)):
     return db.query(Booking).limit(limit).all()
+
+
