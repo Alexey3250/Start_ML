@@ -1,5 +1,5 @@
 from database import Base, engine, SessionLocal
-from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import Column, Integer, String, func
 
 class User(Base):
     __tablename__ = "user"
@@ -18,7 +18,17 @@ if __name__ == "__main__":
     # create a new session
     session = SessionLocal()
     # perform the query
-    query = session.query(User.country, User.os, 
+    query = (session
+        .query(User.country, User.os, func.count(User.id))
+        .filter(User.exp_group == 3)
+        .group_by(User.country, User.os)
+        .having(func.count(User.id) > 100)
+        .order_by(func.count(User.id).desc())
+    )
+    result = query.all()
+    print(result)
+    
     # close the session
     session.close()
+    
     
