@@ -1,5 +1,7 @@
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
 from sqlalchemy.orm import Session
+
+from typing import List
 
 from database import SessionLocal, Base
 from table_feed import Feed
@@ -27,3 +29,37 @@ def get_post(id: int):
         raise HTTPException(404, "post not found!")
     else:
         return post
+
+@app.get("/user/{id}/feed", response_model=List[FeedGet])
+def get_user_feed(id: int, limit: int = 10):
+    session = SessionLocal()
+    
+    # вернуть все действия из feed для пользователя с id = {id} (из запроса).
+    feeds = session.query(Feed) \
+        .filter(Feed.user_id == id) \
+        .order_by(Feed.time.desc()) \
+        .limit(limit) \
+        .all()
+    
+    # проверить если список возвращается пустым, то вернуть ошибку 200, но с пустым списком
+    if not feeds:
+        raise HTTPException(200, "feed not found!")
+    
+    return feeds
+
+@app.get("/post/{id}/feed", response_model=List[FeedGet])
+def get_post_feed(id: int, limit: int = 10):
+    session = SessionLocal()
+    
+    # вернуть все действия из feed для поста с id = {id} (из запроса).
+    feeds = session.query(Feed) \
+        .filter(Feed.post_id == id) \
+        .order_by(Feed.time.desc()) \
+        .limit(limit) \
+        .all()
+        
+    # проверить если список возвращается пустым, то вернуть ошибку 200, но с пустым списком
+    if not feeds:
+        raise HTTPException(200, "feed not found!")
+    
+    return feeds

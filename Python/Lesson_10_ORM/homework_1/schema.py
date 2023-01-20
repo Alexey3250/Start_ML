@@ -1,4 +1,5 @@
 import datetime
+from typing import Optional
 from pydantic import BaseModel # импортировали нужные библиотеки
 
 class PostGet(BaseModel):
@@ -30,6 +31,10 @@ class FeedGet(BaseModel):
     post_id: int
     action: str
     time: datetime.datetime
+    
+    # pydantic allows you to declare fields that are not part of the data model
+    user: Optional[UserGet]
+    post: Optional[PostGet]
     
     class Config:
         orm_mode = True 
