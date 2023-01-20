@@ -1,7 +1,7 @@
 from fastapi import Depends, FastAPI, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy import func
 
-from typing import List
+from typing import List, Optional
 
 from database import SessionLocal, Base
 from table_feed import Feed
@@ -63,3 +63,33 @@ def get_post_feed(id: int, limit: int = 10):
         raise HTTPException(200, "feed not found!")
     
     return feeds
+
+@app.get("/post/reccomendations/")
+def get_recommended_feed(id: int, limit: Optional[int] = 10):
+    session = SessionLocal()
+    '''
+    Возвращает 10 постов, которые имеют наибольшее количество лайков
+
+    1. Запрос к сессии по таблице Post
+    2. Фильтр по лайкам
+    3. Джойн таблицы Post
+    4. Группировка по Post.id
+    5. Сортировка по убыванию func.count(Post.id)
+    6. Лимит строк и .all()
+    '''
+    print(id, limit)
+    
+    
+    recommended_feed = session.query(Post) \
+        .join(Feed, Feed.post_id == Post.id) \
+        .filter(Feed.action == 'like', Post.id == id) \
+        .group_by(Post.id) \
+        .order_by(func.count(Feed.id).desc()) \
+        .limit(limit) \
+        .all()
+    
+    if id is None:
+        raise HTTPException(400, "id parameter is missing")
+
+    
+    return recommended_feed
