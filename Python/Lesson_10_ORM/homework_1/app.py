@@ -65,7 +65,7 @@ def get_post_feed(id: int, limit: int = 10):
     return feeds
 
 @app.get("/post/reccomendations/")
-def get_recommended_feed(id: int, limit: Optional[int] = 10):
+def get_recommended_feed(id: int, limit: int = 10):
     session = SessionLocal()
     '''
     Возвращает 10 постов, которые имеют наибольшее количество лайков
@@ -77,14 +77,13 @@ def get_recommended_feed(id: int, limit: Optional[int] = 10):
     5. Сортировка по убыванию func.count(Post.id)
     6. Лимит строк и .all()
     '''
-    print(id, limit)
-    
+   
     
     recommended_feed = session.query(Post) \
         .join(Feed, Feed.post_id == Post.id) \
-        .filter(Feed.action == 'like', Post.id == id) \
+        .filter(Feed.action == 'like') \
         .group_by(Post.id) \
-        .order_by(func.count(Feed.id).desc()) \
+        .order_by(func.count(Feed.post_id).desc()) \
         .limit(limit) \
         .all()
     
