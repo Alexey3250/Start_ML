@@ -83,7 +83,7 @@ def get_recommended_feed(id: int, limit: int = 10):
         .join(Feed, Feed.post_id == Post.id) \
         .filter(Feed.action == 'like') \
         .group_by(Post.id) \
-        .order_by(func.count(Feed.post_id).desc()) \
+        .order_by(func.count(Post.id).desc()) \
         .limit(limit) \
         .all()
     
