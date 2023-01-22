@@ -64,7 +64,7 @@ def get_post_feed(id: int, limit: int = 10):
     
     return feeds
 
-@app.get("/post/reccomendations/")
+@app.get("/post/recommendations/")
 def get_recommended_feed(id: int, limit: int = 10):
     session = SessionLocal()
     '''
