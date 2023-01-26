@@ -1,0 +1,46 @@
+from datetime import datetime, timedelta
+from textwrap import dedent
+
+from airflow import DAG
+from airflow.operators.bash import BashOperator
+from airflow.operators.python import PythonOperator
+
+
+with DAG(
+    'hw_7_v-didovik',
+    default_args={
+        'depends_on_past': False,
+        'email': ['airflow@example.com'],
+        'email_on_failure': False,
+        'email_on_retry': False,
+        'retries': 1,
+        'retry_delay': timedelta(minutes=5),
+    },
+    description='hw_7_v-didovik',
+    schedule_interval=timedelta(days=1),
+    start_date=datetime(2022, 1, 1),
+    catchup=False,
+    tags=['hw_7_v-didovik'],
+) as dag:
+
+    log_date = "{{ ds }}"
+
+    for i in range(10):
+        t1 = BashOperator(
+            task_id='bash_operator_' + str(i),
+            bash_command=f"echo {i}",
+            env={"DATA_INTERVAL_START": log_date},
+        )
+
+    def print_task_number(task_number, ts, run_id):
+        print("task number is:", task_number)
+        print(ts, run_id)
+
+    for i in range(10, 30):
+        t2 = PythonOperator(
+            task_id='print_str_' + str(i),
+            python_callable=print_task_number,
+            op_kwargs={'task_number': i, 'ts': "{{ ts }}", 'run_id': "{{ run_id }}"},
+        )
+
+    t1 >> t2

@@ -1,0 +1,4 @@
+check:
+  only:
+    - merge_requests
+  script: "exit 0"

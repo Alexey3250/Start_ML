@@ -1,0 +1,28 @@
+from datetime import datetime, timedelta
+from airflow import DAG
+from airflow.operators.bash import BashOperator
+from airflow.operators.python import PythonOperator
+
+with DAG(
+    'DAG1',
+    default_args={
+        'depends_on_past': False,
+        'email': ['xxx@gmail.com'],
+        'email_on_failure' : False,
+        'email_on_retry' : True,
+        'retries' : 2,
+        'retry_delay' : timedelta(minutes=5)
+    },
+    description = 'First_DAG',
+    schedule_interval=timedelta(days=1),
+    start_date=datetime(2022, 1, 1),
+    catchup=True,
+    tags=['first'],
+) as dag:
+    t1 = BashOperator(task_id='first_bash', bash_command='pwd')
+    def print_ds(ds, **kwargs):
+        print(ds)
+        return "something cool"
+    t2 = PythonOperator(task_id='first_python', python_callable=print_ds)
+
+    t1 >> t2
