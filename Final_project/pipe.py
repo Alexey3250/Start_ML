@@ -135,23 +135,6 @@ def prepare_data_for_prediction(data):
 
     return prediction_pool
 
-def process_and_save_predictions(predictions, inference_data, file_name):
-    predictions_df = pd.DataFrame(predictions, columns=['target'])
-    predictions_df['user_id'] = inference_data['user_id'].reset_index(drop=True)
-    predictions_df['post_id'] = inference_data['post_id'].reset_index(drop=True)
-
-    grouped = predictions_df.groupby('user_id')
-    top_5_predictions = grouped.apply(lambda x: x.nlargest(5, 'target')['post_id']).reset_index()
-
-    top_5_predictions['rank'] = top_5_predictions.groupby('user_id').cumcount() + 1
-
-    top_5_predictions_wide = top_5_predictions.pivot_table(index='user_id', columns='rank', values='post_id')
-    top_5_predictions_wide.columns = [f"Top_Prediction_{i}" for i in range(1, 6)]
-
-    top_5_predictions_wide.reset_index(inplace=True)
-    top_5_predictions_wide.to_csv(file_name, index=False)
-
-    print(f"Top-5 predictions saved to '{file_name}'.")
 
 '''
 ВАЖНЫЕ ПЕРЕМЕННЫЕ
@@ -191,7 +174,7 @@ def main():
     predictions = model.predict(prediction_pool)
     
     
-    
+    """СОХРАНЕНИЕ РЕЗУЛЬТАТОВ"""
     # Сохранение результатов предсказаний в виде DataFrame
     predictions_df = pd.DataFrame(predictions, columns=['target'])
     predictions_df['user_id'] = inference_data['user_id'].reset_index(drop=True)
