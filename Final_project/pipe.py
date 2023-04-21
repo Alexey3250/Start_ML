@@ -4,7 +4,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import classification_report
 import pickle
 from sklearn.feature_extraction.text import TfidfVectorizer
-from catboost import Pool, CatBoostClassifier, load_model, CatBoost
+from catboost import Pool, CatBoostClassifier, CatBoost
 import numpy as np
 import re
 from string import punctuation
@@ -43,7 +43,7 @@ def load_and_merge_data(engine, feed_data_size):
     post_text_df = pd.read_sql(query, engine)
 
     # Чтение ограниченного количества данных таблицы feed_data
-    query = "SELECT * FROM feed_data LIMIT {feed_data_size}"
+    query = f"SELECT * FROM feed_data LIMIT {feed_data_size}"
     feed_data = pd.read_sql(query, engine)
 
     # Переименование столбцов идентификаторов
@@ -53,6 +53,8 @@ def load_and_merge_data(engine, feed_data_size):
     # Объединение таблиц
     data = feed_data.merge(user_data, on='user_id', how='left')
     data = data.merge(post_text_df, on='post_id', how='left')
+    
+    print(f"Data shape after load_and_merge_data: {data.shape}")
 
     return data
 
@@ -72,7 +74,9 @@ def process_timestamps(data):
 
     # Удаление столбца временных меток
     data = data.drop('timestamp', axis=1)
-
+    
+    print('Timestamps processed')
+    
     return data
 
 # Кодирование категориальных признаков
@@ -91,6 +95,7 @@ def encode_categorical_features(data):
     data['source'] = le_source.fit_transform(data['source'])
     data['action'] = le_action.fit_transform(data['action'])
 
+    print('Categorical features encoded')
     return data
 
 # Создание дополнительных признаков
@@ -108,11 +113,12 @@ def create_additional_features(data):
     # Feature 3: Количество просмотров и лайков для каждой группы тематик
     temp_df = data[['exp_group', 'topic_business', 'topic_covid', 'topic_entertainment', 'topic_movie', 'topic_politics', 'topic_sport', 'topic_tech', 'action']]
     for col in ['topic_business', 'topic_covid', 'topic_entertainment', 'topic_movie', 'topic_politics', 'topic_sport', 'topic_tech']:
-        temp_df[col] = temp_df[col] * temp_df['action']
+        temp_df.loc[:, col] = temp_df[col] * temp_df['action']
     grouped_data = temp_df.groupby('exp_group').sum().reset_index()
     grouped_data.columns = ['exp_group'] + [f'{col}_exp_group_views' if i % 2 == 0 else f'{col}_exp_group_likes' for i, col in enumerate(grouped_data.columns[1:], 1)]
     data = data.merge(grouped_data, on='exp_group', how='left')
 
+    print('Additional features created')
     return data
 
 # Обработка текстовых признаков
@@ -138,6 +144,7 @@ def process_text_features(data):
     data['avg_word_length'] = avg_word_lengths
     data['punctuation_count'] = punctuation_counts
 
+    print('Text features processed')
     return data
 
 # Обработка TF-IDF
@@ -154,6 +161,7 @@ def process_tfidf(data):
     # Конкатенация исходных данных с DataFrame TF-IDF
     data_with_tfidf = pd.concat([data.drop(columns=['text']), tfidf_df], axis=1)
 
+    print('TF-IDF processed')
     return data_with_tfidf
 
 
@@ -230,7 +238,7 @@ def save_and_load_catboost_model(model, model_path):
 '''
 
 # Создали функцию для обработки данных
-def process_inference_data(preselected_features):
+def process_inference_data(data, preselected_features):
     '''
     На выходе мы получим обработанные данные, которые можно будет передать в модель для получения прогнозов.
     '''
@@ -249,8 +257,46 @@ def process_inference_data(preselected_features):
 
     # Оставить только предварительно отобранные признаки
     data = data[preselected_features]
-
+    
     return data
+
+# Функция для получения прогнозов
+def catboost_inference(model, inference_data):
+    """
+    Функция выполняет предсказания для каждого пользователя в данных.
+
+    Аргументы:
+        model: обученная модель CatBoost.
+        inference_data: DataFrame с данными для предсказания.
+
+    Возвращает:
+        predictions: массив с предсказаниями.
+    """
+
+    # Создаем столбец 'group_id' на основе столбца 'user_id'
+    unique_user_ids = inference_data['user_id'].unique()
+    group_id_dict = {user_id: idx for idx, user_id in enumerate(unique_user_ids)}
+    inference_data['group_id'] = inference_data['user_id'].map(group_id_dict)
+
+    # Удаляем столбцы 'user_id' и 'group_id' перед выполнением предсказаний
+    inference_data_no_ids = inference_data.drop(columns=['user_id', 'group_id'])
+
+    # Выполняем предсказания
+    predictions = model.predict(inference_data_no_ids)
+
+    return predictions
+
+# Функция для сохранения прогнозов
+def save_predictions(predictions, file_name):
+    # Ensure the "predictions" subfolder exists
+    if not os.path.exists("predictions"):
+        os.makedirs("predictions")
+
+    # Save predictions to CSV file in the "predictions" subfolder
+    predictions_df = pd.DataFrame(predictions, columns=["prediction"])
+    predictions_df.to_csv(f"predictions/{file_name}", index=False)
+
+    print(f"Predictions saved to 'predictions/{file_name}'.")
 
 
 '''
@@ -280,6 +326,7 @@ preselected_features = ['user_id', 'gender', 'exp_group', 'os', 'day_of_week', '
 # Сколько рядов данных загружать за один раз
 feed_data_size = 1000
 
+data = pd.DataFrame()
 
 '''
 ГЛАВНАЯ ФУНКЦИЯ
@@ -296,14 +343,16 @@ def main():
     print("Data loaded and merged successfully.")
     
     # Обработка данных
-    data = process_inference_data(preselected_features)
+    data = process_inference_data(data, preselected_features)
     print("Data processed successfully.")
+    print(f"Data shape after process_inference_data: {data.shape}")
     
     # Выполнение инференса
-    # predictions = catboost_inference(model, inference_data, 'group_id')
+    predictions = catboost_inference(model, data)
+    print("Predictions made successfully.")
 
-    # Обработка и сохранение результатов предсказаний
-    # ...
+    # Save predictions to a CSV file
+    save_predictions(predictions, "predictions.csv")
 
 if __name__ == "__main__":
     main()
