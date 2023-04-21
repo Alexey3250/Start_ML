@@ -1,28 +1,39 @@
 import pandas as pd
 from sqlalchemy import create_engine
-import seaborn as sns
-import matplotlib.pyplot as plt
-import plotly.express as px
-from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report
 import pickle
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.feature_selection import mutual_info_classif, SelectKBest
-from catboost import Pool, CatBoostClassifier
+from catboost import Pool, CatBoostClassifier, load_model, CatBoost
 import numpy as np
 import re
 from string import punctuation
+import os
+
+'''
+ФУНКЦИИ ПО ЗАГРУЗКЕ МОДЕЛЕЙ
+'''
+# Проверка если код выполняется в лмс, или локально
+def get_model_path(path: str) -> str:
+    """Просьба не менять этот код"""
+    if os.environ.get("IS_LMS") == "1":  # проверяем где выполняется код в лмс, или локально. Немного магии
+        MODEL_PATH = '/workdir/user_input/model'
+    else:
+        MODEL_PATH = path
+    return MODEL_PATH
+
+# Загрузка модели
+def load_models(model_path):
+    model = CatBoost()
+    model.load_model(model_path)
+    return model
 
 
-# Импорт данных
-def load_data():
-    engine = create_engine(
-        "postgresql://robot-startml-ro:pheiph0hahj1Vaif@"
-        "postgres.lab.karpov.courses:6432/startml"
-    )
-
+'''
+ФУНКЦИИ ПО ПОДГОТОВКЕ ДАННЫХ
+'''
+# Загрузка данных из базы данных
+def load_and_merge_data(engine, feed_data_size):
     # Чтение данных таблицы user_data
     query = "SELECT * FROM user_data"
     user_data = pd.read_sql(query, engine)
@@ -32,7 +43,7 @@ def load_data():
     post_text_df = pd.read_sql(query, engine)
 
     # Чтение ограниченного количества данных таблицы feed_data
-    query = "SELECT * FROM feed_data LIMIT 100000"
+    query = "SELECT * FROM feed_data LIMIT {feed_data_size}"
     feed_data = pd.read_sql(query, engine)
 
     # Переименование столбцов идентификаторов
@@ -44,7 +55,6 @@ def load_data():
     data = data.merge(post_text_df, on='post_id', how='left')
 
     return data
-
 
 # Обработка временных меток
 def process_timestamps(data):
@@ -64,7 +74,6 @@ def process_timestamps(data):
     data = data.drop('timestamp', axis=1)
 
     return data
-
 
 # Кодирование категориальных признаков
 def encode_categorical_features(data):
@@ -147,6 +156,12 @@ def process_tfidf(data):
 
     return data_with_tfidf
 
+
+'''
+ФУНККЦИИ ДЛЯ ОБУЧЕНИЯ МОДЕЛИ 
+'''
+# Отбор признаков на основе Mutual Information
+''' 
 # Отбор признаков на основе взаимной информации
 def select_features_mi(data, target_col, k=50):
     X = data.drop([target_col], axis=1)
@@ -170,7 +185,10 @@ def select_features_mi(data, target_col, k=50):
     print(selected_features)
 
     return selected_features
+'''
 
+# Функция тренировки модели CatBoost
+'''
 # Обучение модели CatBoost
 def train_catboost_model(X_train, X_test, y_train, y_test, group_id_col):
     # Сортируем наборы данных для обучения и тестирования по 'group_id'
@@ -204,3 +222,88 @@ def save_and_load_catboost_model(model, model_path):
     loaded_model.load_model(model_path)
 
     return loaded_model
+'''
+
+
+'''
+ОСНОВНАЯ ЧАСТЬ ПРОГРАММЫ
+'''
+
+# Создали функцию для обработки данных
+def process_inference_data(preselected_features):
+    '''
+    На выходе мы получим обработанные данные, которые можно будет передать в модель для получения прогнозов.
+    '''
+    
+    # Обработка данных
+    data = process_timestamps(data)
+    data = encode_categorical_features(data)
+    data = create_additional_features(data)
+    data = process_text_features(data)
+    data = process_tfidf(data)
+        
+    # Добавление отсутствующих колонок и заполнение их нулями
+    for col in preselected_features:
+        if col not in data.columns:
+            data[col] = 0
+
+    # Оставить только предварительно отобранные признаки
+    data = data[preselected_features]
+
+    return data
+
+
+'''
+ВАЖНЫЕ ПЕРЕМЕННЫЕ
+'''
+# Для работы с БД
+engine = create_engine(
+        "postgresql://robot-startml-ro:pheiph0hahj1Vaif@"
+        "postgres.lab.karpov.courses:6432/startml"
+    )
+
+# Отобранные признаки для модели
+preselected_features = ['user_id', 'gender', 'exp_group', 'os', 'day_of_week', 'hour_of_day',
+    'time_since_last_action', 'country_Russia', 'city_Kansk', 'city_Kazan',
+    'city_Mangghystaū', 'city_Michurinsk', 'city_Moscow', 'city_Pavlovo',
+    'city_Samara', 'topic_covid', 'topic_entertainment', 'topic_movie',
+    'user_views', 'user_likes', 'post_views',
+    'topic_business_exp_group_likes', 'topic_covid_exp_group_views',
+    'topic_entertainment_exp_group_likes', 'topic_movie_exp_group_views',
+    'topic_politics_exp_group_likes', 'topic_sport_exp_group_views',
+    'topic_tech_exp_group_likes', 'action_exp_group_views',
+    'sentence_count', 'punctuation_count', 'australian', 'based', 'city',
+    'ending', 'failed', 'given', 'idea', 'life', 'likely', 'opportunity',
+    'order', 'paid', 'party', 'past', 'political', 'robert', 'scene',
+    'seem', 'wanted']
+
+# Сколько рядов данных загружать за один раз
+feed_data_size = 1000
+
+
+'''
+ГЛАВНАЯ ФУНКЦИЯ
+'''
+# Загрузка и обработка данных для инференса -> Обработка и сохранение результатов предсказаний
+def main():
+    # Загрузка обученной модели
+    model_path = "models/catboost_MAP_model.cbm"
+    model = load_models(model_path)
+    print("Model loaded successfully.")
+    
+    # Загружаем данные
+    data = load_and_merge_data(engine, feed_data_size)
+    print("Data loaded and merged successfully.")
+    
+    # Обработка данных
+    data = process_inference_data(preselected_features)
+    print("Data processed successfully.")
+    
+    # Выполнение инференса
+    # predictions = catboost_inference(model, inference_data, 'group_id')
+
+    # Обработка и сохранение результатов предсказаний
+    # ...
+
+if __name__ == "__main__":
+    main()
