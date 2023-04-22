@@ -24,10 +24,12 @@ def get_model_path(path: str) -> str:
     return MODEL_PATH
 
 # Загрузка модели
-def load_models(model_path):
+def load_models():
+    model_path = get_model_path("models/catboost_MAP_model.cbm")
     model = CatBoost()
     model.load_model(model_path)
     return model
+
 
 
 '''
@@ -152,8 +154,7 @@ data = pd.DataFrame()
 
 def main():
     # Загрузка обученной модели
-    model_path = "models/catboost_MAP_model.cbm"
-    model = load_models(model_path)
+    model = load_models()
     print("Model loaded successfully.")
     
     # Загружаем данные
