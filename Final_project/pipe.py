@@ -26,7 +26,7 @@ def get_model_path(path: str) -> str:
 # Загрузка модели
 def load_models():
     model_path = get_model_path("models/catboost_MAP_model.cbm")
-    model = CatBoost()
+    model = CatBoostWrapper()
     model.load_model(model_path)
     return model
 
@@ -152,6 +152,8 @@ feed_data_size = 100000
 
 data = pd.DataFrame()
 
+
+'''
 def main():
     # Загрузка обученной модели
     model = load_models()
@@ -197,6 +199,60 @@ def main():
     top_5_predictions_wide.to_csv("top_5_predictions_wide.csv", index=False)
 
     print("Top-5 predictions saved to 'top_5_predictions_wide.csv'.")
+'''
+class CatBoostWrapper(CatBoost):
+    def predict_proba(self, X):
+        return self.predict(X, prediction_type='Probability')
+
+def main():
+    # Загрузка обученной модели
+    model = load_models()
+    print("Model loaded successfully.")
+    
+    # Загружаем данные
+    inference_data = load_and_merge_data(engine, feed_data_size)
+    print("Data loaded and merged successfully.")
+    
+    # Обработка данных
+    inference_data = process_timestamps(inference_data)
+    inference_data = create_additional_features(inference_data)
+    print("Data processed successfully.")
+    print(f"Data shape after process_inference_data: {inference_data.shape}")
+    
+    # Shape data for prediction
+    prediction_pool = prepare_data_for_prediction(inference_data)
+    print("Data shaped for prediction successfully.")
+    
+    # Предсказание вероятностей
+    predictions_proba = model.predict_proba(prediction_pool)
+    
+    # Получение предсказаний
+    predictions = (predictions_proba[:, 1] > 0.5).astype(int)
+
+    # Сохранение результатов предсказаний в виде DataFrame
+    predictions_df = pd.DataFrame(predictions, columns=['target'])
+    predictions_df['probability_0'] = predictions_proba[:, 0]
+    predictions_df['probability_1'] = predictions_proba[:, 1]
+    predictions_df['user_id'] = inference_data['user_id'].reset_index(drop=True)
+    predictions_df['post_id'] = inference_data['post_id'].reset_index(drop=True)
+
+    # Группировка по user_id и сортировка по 'target' в порядке убывания
+    grouped = predictions_df.groupby('user_id')
+    top_5_predictions = grouped.apply(lambda x: x.nlargest(5, 'target')['post_id']).reset_index()
+
+    # Группировка данных
+    top_5_predictions['rank'] = top_5_predictions.groupby('user_id').cumcount() + 1
+
+    # Преобразование данных в широкий формат
+    top_5_predictions_wide = top_5_predictions.pivot_table(index='user_id', columns='rank', values='post_id')
+    top_5_predictions_wide.columns = [f"Top_Prediction_{i}" for i in range(1, 6)]
+
+    # Сброс индекса и сохранение предсказаний в CSV-файл
+    top_5_predictions_wide.reset_index(inplace=True)
+    top_5_predictions_wide.to_csv("top_5_predictions_wide.csv", index=False)
+
+    print("Top-5 predictions saved to 'top_5_predictions_wide.csv'.")
+
 
 if __name__ == "__main__":
     main()
