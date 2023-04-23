@@ -1,0 +1,13 @@
+prefix=/Users/alexeyefimik/Start_ML-7/.conda
+exec_prefix=/Users/alexeyefimik/Start_ML-7/.conda
+libdir=/Users/alexeyefimik/Start_ML-7/.conda/lib
+sharedlibdir=/Users/alexeyefimik/Start_ML-7/.conda/lib
+includedir=/Users/alexeyefimik/Start_ML-7/.conda/include
+
+Name: zlib
+Description: zlib compression library
+Version: 1.2.13
+
+Requires:
+Libs: -L${libdir} -L${sharedlibdir} -lz
+Cflags: -I${includedir}

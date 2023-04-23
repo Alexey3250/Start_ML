@@ -1,0 +1,19 @@
+==> 2023-04-23 13:41:26 <==
+# cmd: /Users/alexeyefimik/opt/anaconda3/lib/python3.9/site-packages/conda/__main__.py create --yes --prefix .conda python=3.10
+# conda version: 23.1.0
++defaults/noarch::tzdata-2023c-h04d1e81_0
++defaults/osx-64::bzip2-1.0.8-h1de35cc_0
++defaults/osx-64::ca-certificates-2023.01.10-hecd8cb5_0
++defaults/osx-64::libffi-3.4.2-hecd8cb5_6
++defaults/osx-64::ncurses-6.4-hcec6c5f_0
++defaults/osx-64::openssl-1.1.1t-hca72f7f_0
++defaults/osx-64::pip-23.0.1-py310hecd8cb5_0
++defaults/osx-64::python-3.10.11-h218abb5_2
++defaults/osx-64::readline-8.2-hca72f7f_0
++defaults/osx-64::setuptools-66.0.0-py310hecd8cb5_0
++defaults/osx-64::sqlite-3.41.2-h6c40b1e_0
++defaults/osx-64::tk-8.6.12-h5d9f67b_0
++defaults/osx-64::wheel-0.38.4-py310hecd8cb5_0
++defaults/osx-64::xz-5.2.10-h6c40b1e_1
++defaults/osx-64::zlib-1.2.13-h4dc903c_0
+# update specs: ['python=3.10']
