@@ -6,7 +6,6 @@ import math
 from tqdm import tqdm
 
 
-
 def upload_dataframe_in_chunks(data, table_name, engine, chunksize=10000):
     total_chunks = math.ceil(len(data) / chunksize)
     for i in tqdm(range(total_chunks), desc=f"Uploading to {table_name}"):
@@ -14,7 +13,7 @@ def upload_dataframe_in_chunks(data, table_name, engine, chunksize=10000):
         if_exists = "replace" if i == 0 else "append"
         chunk.to_sql(table_name, con=engine, if_exists=if_exists, index=False, method="multi")
 
-def load_features(engine):
+def load_features():
     
     engine = create_engine(
         "postgresql://robot-startml-ro:pheiph0hahj1Vaif@"
@@ -121,7 +120,7 @@ def main():
         "postgresql://robot-startml-ro:pheiph0hahj1Vaif@"
         "postgres.lab.karpov.courses:6432/startml"
     )
-    data = load_features(engine)
+    data = load_features()
     
     chunksize = 10000
     upload_dataframe_in_chunks(data, "a-efimik_features_lesson_22", engine, chunksize=chunksize)
