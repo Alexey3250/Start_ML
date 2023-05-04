@@ -30,23 +30,20 @@ def load_models():
 # Определяем функцию для получения данных из базы данных PostgreSQL
 def batch_load_sql(query: str) -> pd.DataFrame:
     CHUNKSIZE = 200000
-    # Создаем подключение к базе данных
     engine = create_engine(
         "postgresql://robot-startml-ro:pheiph0hahj1Vaif@"
         "postgres.lab.karpov.courses:6432/startml"
     )
     conn = engine.connect().execution_options(stream_results=True)
     chunks = []
-    # Получаем данные из базы данных порциями, чтобы избежать переполнения памяти
     for chunk_dataframe in pd.read_sql(query, conn, chunksize=CHUNKSIZE):
         chunks.append(chunk_dataframe)
     conn.close()
-    # Объединяем полученные порции данных в один датафрейм и возвращаем его
     return pd.concat(chunks, ignore_index=True)
 
-# Определяем функцию для загрузки данных о признаках статей и пользователей
 def load_features() -> pd.DataFrame:
-    return batch_load_sql('SELECT * FROM public.yancharskaya_features_lesson_22')
+    query = "a-efimik_features_lesson_22_500MB"
+    return batch_load_sql(query)
 
 # Определяем переменные для подключения к базе данных
 SQLALCHEMY_DATABASE_URL = "postgresql://robot-startml-ro:pheiph0hahj1Vaif@postgres.lab.karpov.courses:6432/startml"

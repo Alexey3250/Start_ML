@@ -28,7 +28,7 @@ def load_features():
     
 
 
-    chunksize = 1000000
+    chunksize = 100000
     
     # Чтение данных таблицы user_data
     query = "SELECT * FROM user_data"
