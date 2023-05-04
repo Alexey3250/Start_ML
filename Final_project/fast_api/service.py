@@ -1,31 +1,38 @@
 # Импортируем необходимые модули и библиотеки
 import os
-from catboost import CatBoostClassifier
+from catboost import CatBoostClassifier, Pool, CatBoost
 import pandas as pd
 from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.declarative import declarative_base
 from typing import List
-from fastapi import FastAPI, Depends
-from schema import PostGet
+from fastapi import FastAPI, Depends 
 from datetime import datetime
+from pydantic import BaseModel
 
-# Определяем функцию для получения пути к модели
+'''
+ФУНКЦИИ ПО ЗАГРУЗКЕ МОДЕЛЕЙ
+'''
+# Проверка если код выполняется в лмс, или локально
 def get_model_path(path: str) -> str:
-    # Проверяем, выполняется ли код в LMS, и устанавливаем путь для загрузки модели
-    if os.environ.get("IS_LMS") == "1":
+    """Просьба не менять этот код"""
+    if os.environ.get("IS_LMS") == "1":  # проверяем где выполняется код в лмс, или локально. Немного магии
         MODEL_PATH = '/workdir/user_input/model'
     else:
         MODEL_PATH = path
     return MODEL_PATH
 
-# Определяем функцию для загрузки модели машинного обучения
+class CatBoostWrapper(CatBoost):
+    def predict_proba(self, X):
+        return self.predict(X, prediction_type='Probability')
+
+# Загрузка модели
 def load_models():
-    model_path = get_model_path("/my/super/path")
-    # Загружаем модель из файла по пути model_path
-    from_file = CatBoostClassifier()
-    model = from_file.load_model(model_path)
+    model_path = get_model_path("catboost_model.cbm")
+    model = CatBoostWrapper()
+    model.load_model(model_path)
     return model
+
 
 # Определяем функцию для получения данных из базы данных PostgreSQL
 def batch_load_sql(query: str) -> pd.DataFrame:
@@ -45,6 +52,9 @@ def load_features() -> pd.DataFrame:
     query = "a-efimik_features_lesson_22_500MB"
     return batch_load_sql(query)
 
+model = load_models()
+features = load_features()
+
 # Определяем переменные для подключения к базе данных
 SQLALCHEMY_DATABASE_URL = "postgresql://robot-startml-ro:pheiph0hahj1Vaif@postgres.lab.karpov.courses:6432/startml"
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
@@ -58,6 +68,14 @@ class Post(Base):
     text = Column(String)
     topic = Column(String)
 
+class PostGet(BaseModel):
+    id: int
+    text: str
+    topic: str
+
+    class Config:
+        orm_mode = True
+
 # Определяем функцию для получения сессии базы данных
 def get_db():
     with SessionLocal() as db:
@@ -66,22 +84,50 @@ def get_db():
 # Определяем приложение FastAPI
 app = FastAPI()
 
-# Определяем функцию для получения списка рекомендуемых статей
+# функция подготовки данных для предсказаний
+def prepare_data_for_prediction(user_id: int, features: pd.DataFrame) -> Pool:
+    user_features = features[features['user_id'] == user_id]
+    X = user_features.drop(['user_id', 'post_id_x'], axis=1)
+
+    unique_user_ids = X['user_id'].unique()
+    group_id_dict = {user_id: idx for idx, user_id in enumerate(unique_user_ids)}
+    X['group_id'] = X['user_id'].map(group_id_dict)
+
+    X = X.sort_values(by='group_id')
+
+    data_pool = Pool(X.drop(columns=['user_id']), group_id=X['group_id'])
+
+    return data_pool
+
 @app.get("/post/recommendations/", response_model=List[PostGet])
 def recommended_posts(
-		id: int,
-		time: datetime,
-		limit: int = 5,
-		db: Session = Depends(get_db)) -> List[PostGet]:
-	# Получаем признаки пользователя из таблицы признаков features
-	user_features = features[features['user_id']==id]
-	# Предсказываем вероятности понравившихся статей с помощью загруженной модели
-	user_features['proba'] = model.predict_proba(user_features)[:, 1]
-	# Выбираем limit статей с наибольшими вероятностями
-	preds_id = user_features.sort_values(by='proba', ascending=False)['post_id'][:limit].values.tolist()
-	preds = []
-	# Для каждой выбранной статьи выполняем запрос к базе данных, чтобы получить ее текст и тему
-	for i in preds_id:
-		preds.append(db.query(Post).filter(Post.id == i).one_or_none())
-	# Возвращаем список объектов PostGet, содержащий текст и тему выбранных статей
-	return preds
+        id: int,
+        time: datetime,
+        limit: int = 5,
+        db: Session = Depends(get_db)) -> List[PostGet]:
+    
+    data_pool = prepare_data_for_prediction(id, features)
+    print('Data prepared for prediction')
+    
+    # делаем предсказания с использованием обученной модели и data_pool
+    predictions = model.predict_proba(data_pool)[:, 1]
+    print('Predictions made')
+
+    # Добавляем предсказания в dataframe user_features
+    user_features = features[features['user_id'] == id]
+    user_features['proba'] = predictions
+
+    # Выбираем limit постов с наибольшими вероятностями
+    preds_id = user_features.sort_values(by='proba', ascending=False)['post_id_x'][:limit].values.tolist()
+    preds = []
+    print('Posts selected')
+
+    # Для каждого выбранного поста выполняем запрос к базе данных, чтобы получить его текст и тему
+    for i in preds_id:
+        post = db.query(Post).filter(Post.id == i).one_or_none()
+        preds.append(PostGet(id=post.id, text=post.text, topic=post.topic))
+        
+    print('Posts text and topic retrieved')
+
+    # Возвращаем список объектов PostGet, содержащий текст и тему выбранных статей
+    return preds
