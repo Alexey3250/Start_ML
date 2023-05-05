@@ -34,6 +34,10 @@ def load_models():
     return model
 
 
+'''
+Получение данных из базы данных
+'''
+
 # Определяем функцию для получения данных из базы данных PostgreSQL
 def batch_load_sql(query: str) -> pd.DataFrame:
     CHUNKSIZE = 200000
@@ -81,23 +85,37 @@ def get_db():
     with SessionLocal() as db:
         return db
 
-# Определяем приложение FastAPI
-app = FastAPI()
 
-# функция подготовки данных для предсказаний
+
 def prepare_data_for_prediction(user_id: int, features: pd.DataFrame) -> Pool:
+    # Получение фичей по пользователю
     user_features = features[features['user_id'] == user_id]
+
+    # Подготовка данных для предсказаний
     X = user_features.drop(['user_id', 'post_id_x'], axis=1)
 
+    # Получение уникальных user_id
     unique_user_ids = X['user_id'].unique()
+    # Создание словаря с соответствием user_id и group_id
     group_id_dict = {user_id: idx for idx, user_id in enumerate(unique_user_ids)}
+    # Добавление group_id в датафрейм
     X['group_id'] = X['user_id'].map(group_id_dict)
-
+    # Сортировка по group_id
     X = X.sort_values(by='group_id')
 
+    # Создание Pool
     data_pool = Pool(X.drop(columns=['user_id']), group_id=X['group_id'])
 
     return data_pool
+
+# Возвращаем список объектов PostGet, содержащий текст и тему выбранных статей
+
+'''
+FAST API код
+'''
+
+# Определяем приложение FastAPI
+app = FastAPI()
 
 @app.get("/post/recommendations/", response_model=List[PostGet])
 def recommended_posts(
@@ -106,28 +124,24 @@ def recommended_posts(
         limit: int = 5,
         db: Session = Depends(get_db)) -> List[PostGet]:
     
+    # подготовить данные для предсказания
     data_pool = prepare_data_for_prediction(id, features)
-    print('Data prepared for prediction')
     
     # делаем предсказания с использованием обученной модели и data_pool
     predictions = model.predict_proba(data_pool)[:, 1]
-    print('Predictions made')
 
     # Добавляем предсказания в dataframe user_features
-    user_features = features[features['user_id'] == id]
+    user_features = features[features['group_id'] == id]
     user_features['proba'] = predictions
 
     # Выбираем limit постов с наибольшими вероятностями
     preds_id = user_features.sort_values(by='proba', ascending=False)['post_id_x'][:limit].values.tolist()
     preds = []
-    print('Posts selected')
 
     # Для каждого выбранного поста выполняем запрос к базе данных, чтобы получить его текст и тему
     for i in preds_id:
         post = db.query(Post).filter(Post.id == i).one_or_none()
         preds.append(PostGet(id=post.id, text=post.text, topic=post.topic))
         
-    print('Posts text and topic retrieved')
-
     # Возвращаем список объектов PostGet, содержащий текст и тему выбранных статей
     return preds
