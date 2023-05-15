@@ -28,7 +28,7 @@ class CatBoostWrapper(CatBoost):
 
 # Загрузка модели
 def load_models():
-    model_path = get_model_path("catboost_model.cbm")
+    model_path = get_model_path("catboost_model_1.cbm")
     model = CatBoostWrapper()
     model.load_model(model_path)
     return model
