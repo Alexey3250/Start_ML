@@ -6,9 +6,10 @@ from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.declarative import declarative_base
 from typing import List
-from fastapi import FastAPI, Depends 
+from fastapi import FastAPI, Depends, HTTPException 
 from datetime import datetime
 from pydantic import BaseModel
+from typing import List
 
 '''
 ФУНКЦИИ ПО ЗАГРУЗКЕ МОДЕЛЕЙ
@@ -53,25 +54,20 @@ def batch_load_sql(query: str) -> pd.DataFrame:
     return pd.concat(chunks, ignore_index=True)
 
 def load_features() -> pd.DataFrame:
-    query = "a-efimik_features_lesson_22_500MB"
+    query = "a-efimik_features_lesson_22_4"
     return batch_load_sql(query)
 
-model = load_models()
-features = load_features()
 
-# Определяем переменные для подключения к базе данных
-SQLALCHEMY_DATABASE_URL = "postgresql://robot-startml-ro:pheiph0hahj1Vaif@postgres.lab.karpov.courses:6432/startml"
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
-
+'''
 # Определяем класс Post для работы с таблицей базы данных post
 class Post(Base):
     __tablename__ = 'post'
     id = Column(Integer, primary_key=True)
     text = Column(String)
     topic = Column(String)
-
+    
+'''
+'''
 class PostGet(BaseModel):
     id: int
     text: str
@@ -79,6 +75,15 @@ class PostGet(BaseModel):
 
     class Config:
         orm_mode = True
+'''
+        
+class Post(BaseModel):
+    id: int
+    text: str
+    topic: str
+
+class PostList(BaseModel):
+    posts: List[Post]
 
 # Определяем функцию для получения сессии базы данных
 def get_db():
@@ -87,28 +92,61 @@ def get_db():
 
 
 
-def prepare_data_for_prediction(user_id: int, features: pd.DataFrame) -> Pool:
-    # Получение фичей по пользователю
-    user_features = features[features['user_id'] == user_id]
+def caching_predictions(feed_data):
+    # Get a list of unique users
+    unique_users = feed_data['user_id'].unique()
 
-    # Подготовка данных для предсказаний
-    X = user_features.drop(['user_id', 'post_id_x'], axis=1)
+    # Create a group ID based on the 'user_id'
+    group_id_dict = {user_id: idx for idx, user_id in enumerate(unique_users)}
+    feed_data['group_id'] = feed_data['user_id'].map(group_id_dict)
 
-    # Получение уникальных user_id
-    unique_user_ids = X['user_id'].unique()
-    # Создание словаря с соответствием user_id и group_id
-    group_id_dict = {user_id: idx for idx, user_id in enumerate(unique_user_ids)}
-    # Добавление group_id в датафрейм
-    X['group_id'] = X['user_id'].map(group_id_dict)
-    # Сортировка по group_id
-    X = X.sort_values(by='group_id')
+    # Sort by 'group_id'
+    feed_data.sort_values(by='group_id')
 
-    # Создание Pool
-    data_pool = Pool(X.drop(columns=['user_id']), group_id=X['group_id'])
+    # Create Pool object with the 'group_id' column
+    data_pool = Pool(feed_data.drop(columns=['user_id']), group_id=feed_data['group_id'])
 
-    return data_pool
+    y_pred_proba = model.predict_proba(data_pool)[:, 1]
+    # Add the prediction probabilities to the test dataset
+    features['pred_proba'] = y_pred_proba
 
+    # Group by 'user_id' and find the top 5 predicted 'post_id' for each user
+    top_5_posts = features.groupby('user_id').apply(lambda x: x.nlargest(5, 'pred_proba')['post_id'])
+    
+    # Convert the multi-index Series to a dictionary
+    top_5_posts_dict = top_5_posts.reset_index().groupby('user_id')['post_id'].apply(list).to_dict()
+    
+    # return the top 5 posts in a dictionary
+    return top_5_posts_dict
 # Возвращаем список объектов PostGet, содержащий текст и тему выбранных статей
+
+
+
+
+
+# Определяем переменные для подключения к базе данных
+SQLALCHEMY_DATABASE_URL = "postgresql://robot-startml-ro:pheiph0hahj1Vaif@postgres.lab.karpov.courses:6432/startml"
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
+print("Подключение к базе данных PostgreSQL установлено")
+
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+print("Сессия базы данных установлена")
+
+Base = declarative_base()
+print("Базовый класс для определения таблицы базы данных установлен")
+
+
+model = load_models()
+print("Модель загружена")
+
+features = load_features()
+print("Данные загружены")
+
+top_5_posts_dict = caching_predictions(features)
+print("Предсказания сделаны")
+
+
+
 
 '''
 FAST API код
@@ -117,31 +155,19 @@ FAST API код
 # Определяем приложение FastAPI
 app = FastAPI()
 
-@app.get("/post/recommendations/", response_model=List[PostGet])
-def recommended_posts(
-        id: int,
-        time: datetime,
-        limit: int = 5,
-        db: Session = Depends(get_db)) -> List[PostGet]:
-    
-    # подготовить данные для предсказания
-    data_pool = prepare_data_for_prediction(id, features)
-    
-    # делаем предсказания с использованием обученной модели и data_pool
-    predictions = model.predict_proba(data_pool)[:, 1]
+@app.get("/post/recommendations/", response_model=PostList)
+def recommended_posts(id: int, time: datetime, limit: int = 5):
+    # Retrieve the post ids
+    post_ids = top_5_posts_dict.get(id)
 
-    # Добавляем предсказания в dataframe user_features
-    user_features = features[features['group_id'] == id]
-    user_features['proba'] = predictions
+    if not post_ids:
+        raise HTTPException(status_code=404, detail="User not found")
 
-    # Выбираем limit постов с наибольшими вероятностями
-    preds_id = user_features.sort_values(by='proba', ascending=False)['post_id_x'][:limit].values.tolist()
-    preds = []
+    # Retrieve the posts from the database
+    query = "SELECT * FROM post_text_df WHERE post_id IN ({})".format(", ".join(map(str, post_ids[:limit])))
+    df = pd.read_sql(query, engine)
 
-    # Для каждого выбранного поста выполняем запрос к базе данных, чтобы получить его текст и тему
-    for i in preds_id:
-        post = db.query(Post).filter(Post.id == i).one_or_none()
-        preds.append(PostGet(id=post.id, text=post.text, topic=post.topic))
-        
-    # Возвращаем список объектов PostGet, содержащий текст и тему выбранных статей
-    return preds
+    # Convert the DataFrame to a list of dictionaries
+    posts = df.to_dict('records')
+
+    return {"posts": posts}
