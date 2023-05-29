@@ -5,6 +5,8 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 import torchvision
 from tqdm import tqdm
+from torchvision.datasets import MNIST
+import torchvision.transforms as T
 
 
 
@@ -64,14 +66,24 @@ optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
 transform = torchvision.transforms.Compose([torchvision.transforms.ToTensor(), torchvision.transforms.Normalize((0.5,), (0.5,))])
 
-trainset = torchvision.datasets.MNIST('~/.pytorch/MNIST_data/', download=True, train=True, transform=transform)
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=64, shuffle=True)
+mnist_train = MNIST(
+    "../datasets/mnist",
+    train=True,
+    download=True,
+    transform=T.ToTensor()
+)
+mnist_valid = MNIST(
+    "../datasets/mnist",
+    train=False,
+    download=True,
+    transform=T.ToTensor()
+)
 # batch size is ho
 
-testset = torchvision.datasets.MNIST('~/.pytorch/MNIST_data/', download=True, train=False, transform=transform)
-testloader = torch.utils.data.DataLoader(testset, batch_size=64, shuffle=True)
+trainloader = DataLoader(mnist_train, batch_size=64, shuffle=True)
+testloader = DataLoader(mnist_valid, batch_size=64, shuffle=False)
 
-for epoch in range(100):
+for epoch in range(20):
     train_loss, train_accuracy = train(model, device, trainloader, optimizer, loss_fn)
     print(f'Epoch {epoch+1}, Train Loss: {train_loss}, Train Accuracy: {train_accuracy}')
     test_loss, test_accuracy = evaluate(model, device, testloader, loss_fn)
