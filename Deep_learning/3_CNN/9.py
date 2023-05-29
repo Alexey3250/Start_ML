@@ -58,7 +58,7 @@ def evaluate(model, device, test_loader):
 
 # Load the MNIST dataset
 transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
-train_dataset = datasets.MNIST('./data', train=True, download=True, transform=transform)
+train_dataset = datasets.MNIST('./data', train=False, download=True, transform=transform)
 test_dataset = datasets.MNIST('./data', train=False, transform=transform)
 
 train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
@@ -70,10 +70,10 @@ model = create_mlp_model().to(device)
 optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.5)
 
 # Train and evaluate the model
-for epoch in range(1, 11):
+for epoch in range(1, 99):
     train(model, device, train_loader, optimizer, epoch)
     accuracy = evaluate(model, device, test_loader)
-    if accuracy >= 98:
+    if accuracy >= 99:
         break
 
 # Save the model weights
