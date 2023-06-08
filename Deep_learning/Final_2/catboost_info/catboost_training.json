@@ -1,0 +1,4 @@
+{
+"meta":{"test_sets":["test"],"test_metrics":[{"best_value":"Max","name":"PRAUC"},{"best_value":"Min","name":"Logloss"}],"learn_metrics":[{"best_value":"Max","name":"PRAUC"},{"best_value":"Min","name":"Logloss"}],"launch_mode":"Train","parameters":"","iteration_count":1000,"learn_sets":["learn"],"name":"experiment"},
+"iterations":[
+{"
