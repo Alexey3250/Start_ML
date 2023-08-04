@@ -41741,3 +41741,11 @@ Deep_learning/6_object_detection/PETSdataset/images/yorkshire_terrier_199.jpg
 Deep_learning/6_object_detection/PETSdataset/images/yorkshire_terrier_200.jpg
 Final_project/final_with_DL/output/embedded_sample_texts.csv
 Final_project/final_with_DL/output/embedded_sample_texts.csv
+Final_project/final_with_DL/data_5_percent.csv
+Final_project/final_with_DL/data_10_percent.csv
+Final_project/final_with_DL/data_15_percent.csv
+Final_project/final_with_DL/data_20_percent.csv
+Final_project/final_with_DL/data_full_with_features.csv
+Final_project/final_with_DL/data_ready_v1.csv
+Final_project/final_with_DL/data_ready_v3.csv
+Final_project/final_with_DL/clusterized_df.csv

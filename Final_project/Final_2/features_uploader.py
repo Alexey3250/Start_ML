@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 import time
 
 try:
-    X = pd.read_csv(r'C:\Users\Alex\Desktop\data_10_percent.csv')
+    X = pd.read_csv(r'C:\Users\Alex\Desktop\Repos\Start_ML\Final_project\final_with_DL\data_ready_v3.csv')
     print(X.shape)
 except Exception as e:
     print(e)
@@ -23,4 +23,4 @@ engine = create_engine(
     "postgres.lab.karpov.courses:6432/startml"
 )
 chunksize = 10000
-upload_dataframe_in_chunks(X, "ilia_svetlichnyi_features_lesson_22_v2", engine, chunksize=chunksize)
+upload_dataframe_in_chunks(X, "alexey_efimik_data_ready_wv3", engine, chunksize=chunksize)
